@@ -1,0 +1,74 @@
+(ns furleathercoord.actor-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [furleathercoord.actor :as actor]
+            [furleathercoord.store :as store]))
+
+(defn- fresh-store []
+  (let [st (store/mem-store)]
+    (store/register-operator! st {:operator-id "operator-1" :name "Aki Sato"})
+    (store/register-plant! st {:plant-id "P-1" :name "Kobo Fur and Leather Plant" :max-supply-cost 2000})
+    st))
+
+(deftest commits-a-registered-work-log
+  (let [st (fresh-store)
+        graph (actor/build-graph {:store st})
+        request {:operator-id "operator-1" :op :log-work-record :stake :low
+                  :plant-id "P-1" :task "production run progress log"}
+        result (actor/run-request! graph request {} "thread-1")]
+    (is (= :done (:status result)))
+    (is (some? (get-in result [:state :record])))
+    (is (= 1 (count (store/records-of st "operator-1"))))))
+
+(deftest holds-an-unregistered-plant-proposal
+  (let [st (fresh-store)
+        graph (actor/build-graph {:store st})
+        request {:operator-id "operator-1" :op :log-work-record :stake :low
+                  :plant-id "P-ghost" :task "production run progress log"}
+        result (actor/run-request! graph request {} "thread-2")]
+    (is (= :hold (:disposition (:state result))))
+    (is (empty? (store/records-of st "operator-1")))))
+
+(deftest interrupts-then-approves-safety-concern-on-human-approval
+  (let [st (fresh-store)
+        graph (actor/build-graph {:store st})
+        request {:operator-id "operator-1" :op :flag-safety-concern :stake :low
+                  :plant-id "P-1" :hazard-type :chemical-exposure}
+        interrupted (actor/run-request! graph request {} "thread-3")]
+    (is (= :interrupted (:status interrupted)))
+    (is (empty? (store/records-of st "operator-1")))
+    (let [resumed (actor/approve! graph "thread-3")]
+      (is (= :done (:status resumed)))
+      (is (= 1 (count (store/records-of st "operator-1")))))))
+
+(deftest holds-a-scope-excluded-op-even-at-high-confidence
+  (testing "an actor run can never commit a proposal that would finalize a processing-operation-execution decision, regardless of disposition path"
+    (let [st (fresh-store)
+          graph (actor/build-graph {:store st})
+          request {:operator-id "operator-1" :op :finalize-processing-decision :stake :low
+                    :plant-id "P-1" :task "processing decision"}
+          result (actor/run-request! graph request {} "thread-4")]
+      (is (= :done (:status result)))
+      (is (= :hold (:disposition (:state result))))
+      (is (empty? (store/records-of st "operator-1"))))))
+
+(deftest holds-a-chemical-safety-clearance-op-even-at-high-confidence
+  (testing "an actor run can never commit a proposal that would finalize a chemical-safety-clearance decision, regardless of disposition path"
+    (let [st (fresh-store)
+          graph (actor/build-graph {:store st})
+          request {:operator-id "operator-1" :op :declare-plant-safety-cleared :stake :low
+                    :plant-id "P-1" :task "chemical-safety clearance"}
+          result (actor/run-request! graph request {} "thread-5")]
+      (is (= :done (:status result)))
+      (is (= :hold (:disposition (:state result))))
+      (is (empty? (store/records-of st "operator-1"))))))
+
+(deftest holds-an-override-plant-safety-officer-op-even-at-high-confidence
+  (testing "an actor run can never commit a proposal that would override a plant safety officer's judgment, regardless of disposition path"
+    (let [st (fresh-store)
+          graph (actor/build-graph {:store st})
+          request {:operator-id "operator-1" :op :override-plant-safety-officer-judgment :stake :low
+                    :plant-id "P-1" :task "safety officer override"}
+          result (actor/run-request! graph request {} "thread-6")]
+      (is (= :done (:status result)))
+      (is (= :hold (:disposition (:state result))))
+      (is (empty? (store/records-of st "operator-1"))))))
