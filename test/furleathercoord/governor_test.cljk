@@ -1,5 +1,5 @@
 (ns furleathercoord.governor-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [furleathercoord.store :as store]
             [furleathercoord.advisor :as advisor]
             [furleathercoord.governor :as governor]))
