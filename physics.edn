@@ -1,0 +1,33 @@
+;; What this vertical's robot physically does, declared for
+;; kotoba.robotics.process (kotoba-lang/robotics). `kbb -M:physics` runs it.
+;;
+;; README "Robotics premise": a plant scheduling/logistics coordination robot
+;; does crew scheduling, production/inventory logging and processing-chemical
+;; and raw-hide supply for a fur and leather preparing crew; it never runs the
+;; fleshing, tanning-drum or splitting machines. Its physical work is supply
+;; logistics: moving pallets of raw hides up the ramp into the beamhouse, and
+;; the drain of a tanning drum's process float that sets when hides move on.
+;;
+;; Every number without a cited source is marked `estimate` in its :basis.
+;; Replacing an estimate with a sourced value is this bot's growth work.
+{:physics/schema "itonami.physical-ai.spec.v1"
+ :repo "cloud-itonami/cloud-itonami-isco-8155"
+ :cases
+ [{:id :hide-pallet-up-ramp
+   :kind :transport
+   :procedure "pallet AMR carries a pallet of salted raw hides from receiving up a 2 degree ramp to the beamhouse"
+   :params {:mass-kg 150.0 :distance-m 50.0 :v-max-mps 1.0 :a-max-mps2 0.5
+            :brake-decel-mps2 0.8 :drive-force-n 600.0 :crr 0.02 :slope-deg 2.0
+            :cog-height-m 0.40 :support-half-length-m 0.45 :max-time-s 1200.0}
+   :sweep {:param :payload-kg :values [100.0 300.0 500.0 700.0 850.0]}
+   :quantity :cycle-time-s
+   :limit {:max 60.0 :basis "estimate: one pallet leg per minute to keep the fleshing line fed"}
+   :boundary {:lo 50.0 :hi 950.0}}
+  {:id :tanning-drum-float-drain
+   :kind :tank-drain
+   :procedure "tanning drum's process float drains through the drum door valve before the hides are unloaded"
+   :params {:tank-area-m2 2.0 :h0-m 1.5 :h-target-m 0.1 :cd 0.62 :q-in-m3s 0.0 :dt-s 0.5}
+   :sweep {:param :orifice-area-m2 :values [0.003 0.005 0.008 0.012 0.020]}
+   :quantity :time-to-target-s
+   :limit {:max 600.0 :basis "estimate: a 10 minute drain window in the drum schedule"}
+   :boundary {:lo 0.001 :hi 0.05}}]}
